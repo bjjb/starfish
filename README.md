@@ -37,6 +37,7 @@ and all requests to `test.com` will be proxied to `http://localhost:9000`.
 - Ability to load config rules from JSON
 - Ability to load config rules from any io.Reader
 - Specific endpoint for reconfiguring with a HTTP request
+- Ability to auto-reconfigure by reading its docker environment
 
 ## Credits
 
