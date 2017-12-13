@@ -1,4 +1,4 @@
 FROM scratch
-COPY main /main
-CMD ["/main"]
+COPY main /starfish
+ENTRYPOINT ["/starfish"]
 EXPOSE 80
