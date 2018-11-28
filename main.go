@@ -23,65 +23,72 @@ var (
 	verbose = flag.Bool("v", false, "print more info while running")
 )
 
+// main starts the application; parsing command-line flags, adding the signal
+// handler, loading the rules, and starting the server.
 func main() {
 	flag.Parse()
-	s := &server{cfg: *cfg}
+	s := &Router{cfg: *cfg}
 	go func() {
-		signal.Notify(s.signal(), syscall.SIGUSR1)
+		signal.Notify(s.Signal(), syscall.SIGUSR1)
 	}()
-	s.reload()
+	s.Reload()
 	log.Printf("Listening on %s", *bind)
 	log.Fatal(http.ListenAndServe(*bind, s))
 }
 
-type server struct {
+// A Router is the http.Handler which proxies to the handlers in its rules
+// table.
+type Router struct {
 	mutex sync.RWMutex
 	cfg   string
 	rules map[string]http.Handler
 }
 
-func (s *server) reload() {
-	b, err := ioutil.ReadFile(s.cfg)
+// Reload reloads the router's configuration.
+func (router *Router) Reload() {
+	b, err := ioutil.ReadFile(router.cfg)
 	if err != nil {
 		log.Printf("Error loading rules: %s", err)
 		return
 	}
 
-	rules, err := loadRules(bytes.NewReader(b))
+	rules, err := LoadRules(bytes.NewReader(b))
 	if err != nil {
 		log.Printf("Error loading rules: %s", err)
 		return
 	}
 
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	router.mutex.Lock()
+	defer router.mutex.Unlock()
 
-	s.rules = rules
+	router.rules = rules
 	return
 }
 
-func (s *server) signal() chan os.Signal {
+// Signal reloads the router's config in a goroutine, returning a channel upon
+// which the caller can wait.
+func (router *Router) Signal() chan os.Signal {
 	c := make(chan os.Signal, 1)
 	go func() {
 		for {
 			<-c
-			s.reload()
+			router.Reload()
 		}
 	}()
 	return c
 }
 
 // ServeHTTP proxies the request to a Handler in s's rules, or serves a 404.
-func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (router *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	say("%s %s", r.Method, r.URL.String())
 
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+	router.mutex.RLock()
+	defer router.mutex.RUnlock()
 
 	host := strings.Split(r.Host, ":")[0]
 
-	if s.rules != nil {
-		if handler, found := s.rules[host]; found {
+	if router.rules != nil {
+		if handler, found := router.rules[host]; found {
 			say("=> %s", host)
 			handler.ServeHTTP(w, r)
 			return
@@ -93,16 +100,19 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 const (
-	rulePattern = `^(\S+)\s+(serve|forward)\s+(\S+)$`
+	// RulePattern defines how a line in a config file should be parsed.
+	RulePattern = `^(\S+)\s+(serve|forward)\s+(\S+)$`
 )
 
-var ruleRE *regexp.Regexp
+// RuleRE matches a valid line in a configuration file.
+var RuleRE *regexp.Regexp
 
 func init() {
-	ruleRE = regexp.MustCompile(rulePattern)
+	RuleRE = regexp.MustCompile(RulePattern)
 }
 
-func loadRules(r io.Reader) (map[string]http.Handler, error) {
+// LoadRules loads a set of rules from the given reader.
+func LoadRules(r io.Reader) (map[string]http.Handler, error) {
 	rules := make(map[string]http.Handler)
 
 	b, err := ioutil.ReadAll(r)
@@ -111,7 +121,7 @@ func loadRules(r io.Reader) (map[string]http.Handler, error) {
 	}
 
 	for n, line := range bytes.Split(bytes.TrimSpace(b), []byte("\n")) {
-		host, handler, err := parseRule(line)
+		host, handler, err := ParseRule(line)
 		if err != nil {
 			return nil, fmt.Errorf("line %d: %s", n, err)
 		}
@@ -120,8 +130,9 @@ func loadRules(r io.Reader) (map[string]http.Handler, error) {
 	return rules, nil
 }
 
-func parseRule(b []byte) (string, http.Handler, error) {
-	result := ruleRE.FindStringSubmatch(string(b))
+// ParseRule parses an individual rule and gets an appropriate http.Handler.
+func ParseRule(b []byte) (string, http.Handler, error) {
+	result := RuleRE.FindStringSubmatch(string(b))
 
 	if result == nil {
 		return "", nil, fmt.Errorf("`%s` - invalid syntax", b)
@@ -135,31 +146,35 @@ func parseRule(b []byte) (string, http.Handler, error) {
 
 	switch result[2] {
 	case "serve":
-		return result[1], makeServer(result[3]), nil
+		return result[1], NewFileServer(result[3]), nil
 	case "forward":
-		return result[1], makeProxy(result[3]), nil
+		return result[1], NewProxy(result[3]), nil
 	}
-	return "", nil, fmt.Errorf("`%s` - unknown rule", result[2], result)
+	return "", nil, fmt.Errorf("`%s` - unknown rule (%s)", result[2], result)
 }
 
-type fileServer struct {
+// A FileServer is a http.FileServer with a webroot.
+type FileServer struct {
 	dir     string
 	handler http.Handler
 }
 
-func (s *fileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP implements http.Handler for a FileServer
+func (s *FileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[%s]: %s %s", s.dir, r.Method, r.URL.String())
 	s.handler.ServeHTTP(w, r)
 }
 
-func makeServer(dir string) http.Handler {
-	return &fileServer{
+// NewFileServer makes a new file server with the given webroot.
+func NewFileServer(dir string) http.Handler {
+	return &FileServer{
 		dir:     dir,
 		handler: http.FileServer(http.Dir(dir)),
 	}
 }
 
-func makeProxy(upstream string) http.Handler {
+// NewProxy makes a new reverse proxy to the given upstream.
+func NewProxy(upstream string) http.Handler {
 	return &httputil.ReverseProxy{
 		Director: func(r *http.Request) {
 			r.URL.Host = upstream

@@ -1,15 +1,16 @@
 .PHONY: clean image
 
+USER=bjjb
+REPO=starfish
+
 default: image
 
-main: main.go
-	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
-
-starfish: main.go
-	go build .
-
-image: main
+image: main.go
 	docker build -t bjjb/starfish .
+
+push: image
+	echo "$(DOCKER_PASSWORD)" | docker login -u "$(DOCKER_USERNAME)" --password-stdin
+	docker push $(USER)/$(REPO)
 
 clean:
 	rm -f main starfish
