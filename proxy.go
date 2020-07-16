@@ -7,11 +7,13 @@ import (
 )
 
 // ProxyURL creates a new proxy (using the scheme) to the given host.
-func ProxyURL(url *url.URL) http.Handler {
+func ProxyURL(origin *url.URL) http.Handler {
 	return &httputil.ReverseProxy{
 		Director: func(r *http.Request) {
-			r.URL.Host = url.Host
-			r.URL.Scheme = url.Scheme
+			r.Header.Add("X-Forwarded-Host", r.Host)
+			r.Header.Add("X-Origin-Host", origin.Host)
+			r.URL.Host = origin.Host
+			r.URL.Scheme = origin.Scheme
 		},
 	}
 }
