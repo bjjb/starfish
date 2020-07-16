@@ -1,15 +1,13 @@
-.PHONY: clean image
+.PHONY: test build image clean
 
-default: image
+test:
+	go test
 
-main: main.go
-	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+build:
+	go build
 
-starfish: main.go
-	go build .
-
-image: main
+image:
 	docker build -t bjjb/starfish .
 
 clean:
-	rm -f main starfish
+	git clean -Xfd
