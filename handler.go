@@ -23,3 +23,8 @@ func (f HandlerFunc) Handle(h http.Handler) Route {
 func (f HandlerFunc) HandleFunc(h func(http.ResponseWriter, *http.Request)) Route {
 	return f(http.HandlerFunc(h))
 }
+
+// BadGateway always gives a 502
+var BadGateway = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
+})
