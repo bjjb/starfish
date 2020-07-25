@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	"testing"
 )
 
 func ExampleProxy() {
@@ -13,8 +13,7 @@ func ExampleProxy() {
 		fmt.Fprint(w, "Hello from upstream!")
 	})
 	fooServer := httptest.NewServer(fooHandler)
-	fooURL, _ := url.Parse(fooServer.URL)
-	mainHandler := Proxy(fooURL)
+	mainHandler := Proxy(fooServer.URL)
 	r := httptest.NewRequest(http.MethodGet, "https://example.com", nil)
 	w := httptest.NewRecorder()
 	mainHandler.ServeHTTP(w, r)
@@ -23,4 +22,17 @@ func ExampleProxy() {
 	fmt.Println(string(body))
 	// Output:
 	// Hello from upstream!
+}
+
+func TestProxy(t *testing.T) {
+	t.Run("a bad url gives a bad gateway", func(t *testing.T) {
+		x := Proxy(":") // invalid URL
+		r := httptest.NewRequest(http.MethodGet, "https://example.com", nil)
+		w := httptest.NewRecorder()
+		x.ServeHTTP(w, r)
+		statusCode := w.Result().StatusCode
+		if statusCode != http.StatusBadGateway {
+			t.Errorf("expected %d, got %d", http.StatusBadGateway, statusCode)
+		}
+	})
 }

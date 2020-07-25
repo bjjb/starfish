@@ -85,16 +85,6 @@ func (router *Router) Clear() {
 	router.Replace([]Route{})
 }
 
-// ListenAndServe listens on the given port and serves HTTP
-func (router *Router) ListenAndServe(addr string) error {
-	return http.ListenAndServe(addr, router)
-}
-
-// ListenAndServeTLS listens on the given port and serves HTTPS
-func (router *Router) ListenAndServeTLS(addr, cert, key string) error {
-	return http.ListenAndServeTLS(addr, cert, key, router)
-}
-
 func (router *Router) routes() chan Route {
 	ch := make(chan Route)
 	go func(routes []Route) {
@@ -142,12 +132,6 @@ var Replace = defaultRouter.Replace
 
 // Clear the routes of the default router
 var Clear = defaultRouter.Clear
-
-// ListenAndServe serves HTTP on the default router
-var ListenAndServe = defaultRouter.ListenAndServe
-
-// ListenAndServeTLS serves HTTPS on the default router
-var ListenAndServeTLS = defaultRouter.ListenAndServeTLS
 
 var defaultRouter *Router
 

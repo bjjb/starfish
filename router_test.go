@@ -10,7 +10,7 @@ import (
 
 func TestRouter(t *testing.T) {
 	// A general request for all tests
-	t.Run("an null router", func(t *testing.T) {
+	t.Run("a zero router", func(t *testing.T) {
 		router := new(Router)
 		t.Run("has no routes", func(t *testing.T) {
 			routes := router.Routes()
