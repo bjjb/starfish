@@ -27,7 +27,7 @@ type rule struct {
 var commentPattern = `\A\s*#`
 var commentRegexp = regexp.MustCompile(commentPattern)
 var hostPattern = `\S+`
-var actionPattern = `(?:f|forward|s|serve)`
+var actionPattern = `(?:f|forward|s|serve|a|api)`
 var actionRegexp = regexp.MustCompile(actionPattern)
 var targetPattern = `\S+`
 var rulePattern = fmt.Sprintf(`\A\s*(%s)\s+(%s)\s+(%s)\s*\z`, actionPattern, hostPattern, targetPattern)
